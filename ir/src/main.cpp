@@ -71,8 +71,6 @@ void setup()
     Serial.println("Done Initialize");
 }
 
-uint32_t latestStatMS = 0;
-
 void handleIRDecode()
 {
     if (!irrecv.decode(&results))
@@ -102,6 +100,8 @@ void handleIRDecode()
     Serial.println(); // Blank line between entries
     yield();          // Feed the WDT (again)
 }
+
+uint32_t latestStatMS = 0;
 
 void handleMonitorOutput()
 {
