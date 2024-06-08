@@ -32,6 +32,26 @@ IRrecv irrecv(IR_RECV_PIN, kCaptureBufferSize, kTimeout, true);
 
 decode_results results;
 
+// WiFiの接続
+void setupWiFi()
+{
+    WiFi.begin(ssid, pass);
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(500);
+    }
+    Serial.print("IP:");
+    Serial.println(WiFi.localIP());
+}
+
+// IR受信開始
+void setupIR()
+{
+    irrecv.setUnknownThreshold(kMinUnknownSize);
+    irrecv.setTolerance(kTolerancePercentage); // Override the default tolerance.
+    irrecv.enableIRIn();                       // Start the receiver
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -42,62 +62,64 @@ void setup()
     pixels.setPixelColor(0, pixels.Color(0, 32, 0));
     pixels.show();
 
-    // WiFiの接続
-    WiFi.begin(ssid, pass);
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-    }
-    Serial.print("IP:");
-    Serial.println(WiFi.localIP());
-
-    irrecv.setUnknownThreshold(kMinUnknownSize);
-    irrecv.setTolerance(kTolerancePercentage); // Override the default tolerance.
-    irrecv.enableIRIn();                       // Start the receiver
-
-    Serial.println("Done Initialize");
+    setupWiFi();
+    setupIR();
 
     pixels.setPixelColor(0, pixels.Color(0, 0, 32));
     pixels.show();
+
+    Serial.println("Done Initialize");
 }
 
-unsigned long latestStatMS = 0;
+uint32_t latestStatMS = 0;
+
+void handleIRDecode()
+{
+    if (!irrecv.decode(&results))
+    {
+        return;
+    }
+    // Display a crude timestamp.
+    uint32_t now = millis();
+    Serial.printf(D_STR_TIMESTAMP " : %06u.%03u\n", now / 1000, now % 1000);
+    // Check if we got an IR message that was to big for our capture buffer.
+    if (results.overflow)
+        Serial.printf(D_WARN_BUFFERFULL "\n", kCaptureBufferSize);
+    // Display the library version the message was captured with.
+    Serial.println(D_STR_LIBRARY "   : v" _IRREMOTEESP8266_VERSION_STR "\n");
+    // Display the tolerance percentage if it has been change from the default.
+    if (kTolerancePercentage != kTolerance)
+        Serial.printf(D_STR_TOLERANCE " : %d%%\n", kTolerancePercentage);
+    // Display the basic output of what we found.
+    Serial.print(resultToHumanReadableBasic(&results));
+    // Display any extra A/C info if we have it.
+    String description = IRAcUtils::resultAcToString(&results);
+    if (description.length())
+        Serial.println(D_STR_MESGDESC ": " + description);
+    yield(); // Feed the WDT as the text output can take a while to print.
+    // Output the results as source code
+    Serial.println(resultToSourceCode(&results));
+    Serial.println(); // Blank line between entries
+    yield();          // Feed the WDT (again)
+}
+
+void handleMonitorOutput()
+{
+    uint32_t now = millis();
+
+    if (now < latestStatMS + 1000)
+    {
+        return;
+    }
+
+    latestStatMS = now;
+
+    Serial.print("IP:");
+    Serial.println(WiFi.localIP());
+}
 
 void loop()
 {
-    unsigned long now = millis();
-
-    // Check if the IR code has been received.
-    if (irrecv.decode(&results))
-    {
-        // Display a crude timestamp.
-        uint32_t now = millis();
-        Serial.printf(D_STR_TIMESTAMP " : %06u.%03u\n", now / 1000, now % 1000);
-        // Check if we got an IR message that was to big for our capture buffer.
-        if (results.overflow)
-            Serial.printf(D_WARN_BUFFERFULL "\n", kCaptureBufferSize);
-        // Display the library version the message was captured with.
-        Serial.println(D_STR_LIBRARY "   : v" _IRREMOTEESP8266_VERSION_STR "\n");
-        // Display the tolerance percentage if it has been change from the default.
-        if (kTolerancePercentage != kTolerance)
-            Serial.printf(D_STR_TOLERANCE " : %d%%\n", kTolerancePercentage);
-        // Display the basic output of what we found.
-        Serial.print(resultToHumanReadableBasic(&results));
-        // Display any extra A/C info if we have it.
-        String description = IRAcUtils::resultAcToString(&results);
-        if (description.length())
-            Serial.println(D_STR_MESGDESC ": " + description);
-        yield(); // Feed the WDT as the text output can take a while to print.
-        // Output the results as source code
-        Serial.println(resultToSourceCode(&results));
-        Serial.println(); // Blank line between entries
-        yield();          // Feed the WDT (again)
-    }
-
-    if (now > latestStatMS + 1000)
-    {
-        latestStatMS = now;
-        Serial.print("IP:");
-        Serial.println(WiFi.localIP());
-    }
+    handleIRDecode();
+    handleMonitorOutput();
 }
