@@ -13,9 +13,19 @@
 
 #include <ssid.h>
 
+void handleRootAPI(void);
+void handleNotFoundAPI(void);
+void handleIRDecodeAPI(void);
+
 #define LED_PIN GPIO_NUM_2
 #define IR_SEND_PIN GPIO_NUM_5
 #define IR_RECV_PIN GPIO_NUM_4
+
+#define COLOR_SETUP pixels.Color(0, 32, 0)
+#define COLOR_NORMAL pixels.Color(0, 0, 32)
+#define COLOR_RECEIVE pixels.Color(32, 32, 0)
+
+#define RECEIVING_MAX_WAIT_MS 5000
 
 const char *ssid = WIFI_SSID;
 const char *pass = WIFI_PASSWORD;
@@ -44,12 +54,21 @@ void setupWiFi()
     Serial.println(WiFi.localIP());
 }
 
-// IR受信開始
 void setupIR()
 {
+    irsend.begin();
     irrecv.setUnknownThreshold(kMinUnknownSize);
-    irrecv.setTolerance(kTolerancePercentage); // Override the default tolerance.
-    irrecv.enableIRIn();                       // Start the receiver
+    irrecv.setTolerance(kTolerancePercentage);
+    irrecv.enableIRIn();
+}
+
+void setupServer()
+{
+    // Webサーバの開始
+    server.on("/", HTTP_GET, handleRootAPI);
+    server.on("/ir/receive", HTTP_GET, handleIRDecodeAPI);
+    server.onNotFound(handleNotFoundAPI);
+    server.begin();
 }
 
 void setup()
@@ -59,46 +78,93 @@ void setup()
     Serial.println("Start Initialize");
 
     pixels.begin();
-    pixels.setPixelColor(0, pixels.Color(0, 32, 0));
+    pixels.setPixelColor(0, COLOR_SETUP);
     pixels.show();
 
     setupWiFi();
     setupIR();
+    setupServer();
 
-    pixels.setPixelColor(0, pixels.Color(0, 0, 32));
+    pixels.setPixelColor(0, COLOR_NORMAL);
     pixels.show();
 
     Serial.println("Done Initialize");
 }
 
-void handleIRDecode()
+void handleRootAPI(void)
 {
-    if (!irrecv.decode(&results))
+    server.send(200, "application/json", "{}");
+}
+
+void handleNotFoundAPI(void)
+{
+    server.send(404, "application/json", "{\"message\": \"Not Found.\"}");
+}
+
+void handleIRDecodeAPI(void)
+{
+    Serial.println("GET /ir/receive");
+    pixels.setPixelColor(0, COLOR_RECEIVE);
+    pixels.show();
+
+    JsonDocument doc;
+
+    doc["lib_version"] = _IRREMOTEESP8266_VERSION_STR;
+
+    for (uint32_t start = millis(); true;)
     {
-        return;
+        if (millis() > start + RECEIVING_MAX_WAIT_MS)
+        {
+            doc["available"] = false;
+            break;
+        }
+
+        if (!irrecv.decode(&results))
+        {
+            continue;
+        }
+
+        doc["available"] = true;
+
+        // https://github.com/crankyoldgit/IRremoteESP8266/blob/2bfdf9719250471f004b720e81c14ab00a244836/examples/IRrecvDumpV3/IRrecvDumpV3.ino#L164-L190
+        // Check if we got an IR message that was to big for our capture buffer.
+        if (results.overflow)
+            Serial.printf(D_WARN_BUFFERFULL "\n", kCaptureBufferSize);
+
+        // Display the tolerance percentage if it has been change from the default.
+        // if (kTolerancePercentage != kTolerance)
+        //     Serial.printf(D_STR_TOLERANCE " : %d%%\n", kTolerancePercentage);
+
+        // Display the basic output of what we found.
+        Serial.print(resultToHumanReadableBasic(&results));
+        doc["data"]["type"] = typeToString(results.decode_type, results.repeat);
+        doc["data"]["hex"] = resultToHexidecimal(&results);
+        // Display any extra A/C info if we have it.
+        String description = IRAcUtils::resultAcToString(&results);
+        if (description.length())
+            Serial.println(D_STR_MESGDESC ": " + description);
+        doc["data"]["mes"] = description;
+        yield(); // Feed the WDT as the text output can take a while to print.
+
+        // Output the results as source code
+        // Serial.println(resultToSourceCode(&results));
+        // Serial.println(); // Blank line between entries
+        // yield();          // Feed the WDT (again)
+
+        break;
     }
-    // Display a crude timestamp.
     uint32_t now = millis();
-    Serial.printf(D_STR_TIMESTAMP " : %06u.%03u\n", now / 1000, now % 1000);
-    // Check if we got an IR message that was to big for our capture buffer.
-    if (results.overflow)
-        Serial.printf(D_WARN_BUFFERFULL "\n", kCaptureBufferSize);
-    // Display the library version the message was captured with.
-    Serial.println(D_STR_LIBRARY "   : v" _IRREMOTEESP8266_VERSION_STR "\n");
-    // Display the tolerance percentage if it has been change from the default.
-    if (kTolerancePercentage != kTolerance)
-        Serial.printf(D_STR_TOLERANCE " : %d%%\n", kTolerancePercentage);
-    // Display the basic output of what we found.
-    Serial.print(resultToHumanReadableBasic(&results));
-    // Display any extra A/C info if we have it.
-    String description = IRAcUtils::resultAcToString(&results);
-    if (description.length())
-        Serial.println(D_STR_MESGDESC ": " + description);
-    yield(); // Feed the WDT as the text output can take a while to print.
-    // Output the results as source code
-    Serial.println(resultToSourceCode(&results));
-    Serial.println(); // Blank line between entries
-    yield();          // Feed the WDT (again)
+
+    doc["ts"] = now;
+
+    char bodyBuf[1024 * 2];
+    size_t bodySize = serializeJson(doc, bodyBuf, sizeof(bodyBuf));
+    Serial.println(bodyBuf);
+    server.send(200, "application/json", bodyBuf);
+
+    Serial.println("GET /ir/receive 200");
+    pixels.setPixelColor(0, COLOR_NORMAL);
+    pixels.show();
 }
 
 uint32_t latestStatMS = 0;
@@ -120,6 +186,7 @@ void handleMonitorOutput()
 
 void loop()
 {
-    handleIRDecode();
+    // handleIRDecode();
+    server.handleClient();
     handleMonitorOutput();
 }
