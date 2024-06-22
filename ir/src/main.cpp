@@ -247,7 +247,7 @@ void handleIRSendAPI(void)
     {
         resDoc["error"] = "unknown type.";
         writeJSONResponse("POST /ir/send", 401, resDoc);
-return;
+        return;
     }
 
     resDoc["success"] = true;
