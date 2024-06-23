@@ -12,6 +12,7 @@
 #include <IRutils.h>
 
 #include <ssid.h>
+#include <Wire.h>
 
 #define UINT64_STR_LEN 16
 
@@ -19,18 +20,26 @@ void handleRootAPI(void);
 void handleNotFoundAPI(void);
 void handleIRSendAPI(void);
 void handleIRDecodeAPI(void);
+#ifdef ENABLE_SHT31
+void handleGetSHT31API(void);
+#endif
 
 #define BUTTON_PIN GPIO_NUM_3
 #define LED_PIN GPIO_NUM_2
 #define IR_SEND_PIN GPIO_NUM_5
 #define IR_RECV_PIN GPIO_NUM_4
 
+#define I2C_SCL_PIN GPIO_NUM_0
+#define I2C_SDA_PIN GPIO_NUM_1
+
 #define COLOR_SETUP pixels.Color(0, 32, 0)
 #define COLOR_NORMAL pixels.Color(0, 0, 32)
 #define COLOR_RECEIVE pixels.Color(32, 32, 0)
-#define COLOR_SEND pixels.Color(0, 32, 32)
+#define COLOR_OPERATION pixels.Color(0, 32, 32)
 
 #define RECEIVING_MAX_WAIT_MS 5000
+
+#define SHT31_I2C_ADDR 0x44
 
 const char *ssid = WIFI_SSID;
 const char *pass = WIFI_PASSWORD;
@@ -59,6 +68,11 @@ void setupWiFi()
     Serial.println(WiFi.localIP());
 }
 
+void setupI2C()
+{
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+}
+
 void setupIR()
 {
     irsend.begin();
@@ -68,12 +82,42 @@ void setupIR()
     irrecv.enableIRIn();
 }
 
+#ifdef ENABLE_SHT31
+void setupSHT31()
+{
+    // ソフトリセット
+    Wire.beginTransmission(SHT31_I2C_ADDR);
+    Wire.write(0x30);
+    Wire.write(0xA2);
+    Wire.endTransmission();
+
+    delay(300);
+
+    // ステータスレジスタ消去
+    Wire.beginTransmission(SHT31_I2C_ADDR);
+    Wire.write(0x30);
+    Wire.write(0x41);
+    Wire.endTransmission();
+
+    delay(300);
+
+    // 連続測定・繰り返し精度レベル高・測定頻度1mps
+    // Wire.beginTransmission(SHT31_I2C_ADDR);
+    // Wire.write(0x21);
+    // Wire.write(0x30);
+    // Wire.endTransmission();
+}
+#endif ENABLE_SHT31
+
 void setupServer()
 {
     // Webサーバの開始
     server.on("/", HTTP_GET, handleRootAPI);
     server.on("/ir/receive", HTTP_GET, handleIRDecodeAPI);
     server.on("/ir/send", HTTP_POST, handleIRSendAPI);
+#ifdef ENABLE_SHT31
+    server.on("/sht31", HTTP_GET, handleGetSHT31API);
+#endif
     server.onNotFound(handleNotFoundAPI);
     server.begin();
 }
@@ -94,9 +138,13 @@ void setup()
     pixels.show();
 
     setupWiFi();
+    setupI2C();
     setupIR();
     setupServer();
     setupButton();
+#ifdef ENABLE_SHT31
+    setupSHT31();
+#endif
 
     pixels.setPixelColor(0, COLOR_NORMAL);
     pixels.show();
@@ -179,7 +227,7 @@ void hexStringToByteArray(const char *hexString, unsigned char *byteArray, size_
 void handleIRSendAPI(void)
 {
     Serial.println("POST /ir/send");
-    pixels.setPixelColor(0, COLOR_SEND);
+    pixels.setPixelColor(0, COLOR_OPERATION);
     pixels.show();
 
     JsonDocument resDoc;
@@ -314,6 +362,58 @@ void handleIRDecodeAPI(void)
     writeJSONResponse("GET /ir/receive", 200, doc);
 }
 
+#ifdef ENABLE_SHT31
+void handleGetSHT31API(void)
+{
+    // https://spiceman.jp/arduino-sht31-program/
+    Serial.println("GET /sht31");
+    pixels.setPixelColor(0, COLOR_OPERATION);
+    pixels.show();
+
+    JsonDocument resDoc;
+
+    uint32_t now = millis();
+    resDoc["ts"] = now;
+    resDoc["lib_version"] = "1.0.0";
+    resDoc["success"] = false;
+
+    unsigned int dac[6];
+    unsigned int i, t, h;
+    float temperature, humidity;
+
+    Wire.beginTransmission(SHT31_I2C_ADDR);
+    Wire.write(0x24);
+    Wire.write(0x00);
+    Wire.endTransmission();
+
+    delay(300);
+
+    Wire.requestFrom(SHT31_I2C_ADDR, 6);
+    for (i = 0; i < 6; i++)
+    {
+        dac[i] = Wire.read();
+    }
+    Wire.endTransmission();
+
+    t = (dac[0] << 8) | dac[1];                      // 1Byte目のデータを8bit左にシフト、OR演算子で2Byte目のデータを結合して、tに代入
+    temperature = (float)(t) * 175 / 65535.0 - 45.0; // 温度の計算、temperatureに代入
+    h = (dac[3] << 8) | dac[4];                      ////4Byte目のデータを8bit左にシフト、OR演算子で5Byte目のデータを結合して、hに代入
+    humidity = (float)(h) / 65535.0 * 100.0;         // 湿度の計算、humidityに代入
+
+    resDoc["data"]["temperature"] = temperature;
+    resDoc["data"]["humidity"] = humidity;
+
+    Serial.print("temperature：");
+    Serial.print(temperature);
+    Serial.print(" humidity：");
+    Serial.println(humidity);
+
+    resDoc["success"] = true;
+
+    writeJSONResponse("GET /sht31", 200, resDoc);
+}
+#endif
+
 uint32_t latestStatMS = 0;
 
 void handleMonitorOutput()
@@ -343,7 +443,7 @@ void handleButton()
         return;
 
     Serial.println("Button Pushed");
-    pixels.setPixelColor(0, COLOR_SEND);
+    pixels.setPixelColor(0, COLOR_OPERATION);
 
     irsend.sendSony(0xa90, 12, 2); // 12 bits & 2 repeats
 
@@ -352,7 +452,6 @@ void handleButton()
 
 void loop()
 {
-    // handleIRDecode();
     server.handleClient();
     handleMonitorOutput();
     handleButton();
