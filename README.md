@@ -1,6 +1,6 @@
 # ESP32C3-IoT-Server Firmware
 
-74th が自宅で使っている ESP32C3 IoT Server のファームウェアです。
+74th が自宅で使っている ESP32C3 IoT Server のファームウェアです。センサーや、IR モジュールを、WebAPI 化しています。
 
 メインファームウェア [main-firmware](./main-firmware/)
 
