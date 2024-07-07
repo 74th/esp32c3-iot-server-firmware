@@ -74,3 +74,9 @@ SHT31 から温度、湿度を取得します
 3. src/ssid.hpp.sample を src/ssid.hpp にコピーし、Wi-Fi の SSID とパスワードを設定します
 4. BOOT を押しながら ボードと PC を USB で接続するか、BOOT ボタンを押しながら RST ボタンを押して、書き込みモードにします
 5. コマンド「PlatformIO: Upload」を押して書き込みます
+
+## 利用・参考ライブラリ
+
+- IR: https://github.com/crankyoldgit/IRremoteESP8266
+- SHT31: 参考ブログ https://spiceman.jp/arduino-sht31-program/
+- RGB LED: Adafruit NeoPixel
