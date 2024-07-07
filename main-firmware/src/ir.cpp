@@ -149,6 +149,22 @@ void handleIRSendAPI(void)
 
         irsend.sendMitsubishiAC(data, size);
     }
+    else if (strcmp(type, "SHARP_AC") == 0)
+    {
+        if (strlen(hexData) > 32 * UINT64_STR_LEN)
+        {
+            resDoc["error"] = "hex is too long.";
+            writeJSONResponse("POST /ir/send", 401, resDoc);
+            return;
+        }
+
+        unsigned char data[64];
+        size_t size;
+        hexStringToByteArray(hexData, data, &size);
+        Serial.printf("data: %llx\r\n", data);
+
+        irsend.sendSharpAc(data, size);
+    }
     else
     {
         resDoc["error"] = "unknown type.";
