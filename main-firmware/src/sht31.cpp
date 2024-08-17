@@ -8,6 +8,8 @@
 
 #define SHT31_I2C_ADDR 0x44
 
+void handleGetSHT31API(void);
+
 void addSHT31API(WebServer *server)
 {
     server->on("/sht31", HTTP_GET, handleGetSHT31API);

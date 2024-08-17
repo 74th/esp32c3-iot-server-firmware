@@ -9,11 +9,16 @@
 #include <ssid.hpp>
 #include <config.hpp>
 #include <led.hpp>
+#include <ir.hpp>
+#include <webAPI.hpp>
+
 #ifdef ENABLE_SHT31
 #include <sht31.hpp>
 #endif
-#include <ir.hpp>
-#include <webAPI.hpp>
+
+#ifdef ENABLE_CH9329
+#include <ch9329.hpp>
+#endif
 
 const char *ssid = WIFI_SSID;
 const char *pass = WIFI_PASSWORD;
@@ -42,6 +47,7 @@ void setupButton()
 
 void setup()
 {
+    delay(3000);
     Serial.begin(115200);
 
     Serial.println("Start Initialize");
@@ -55,6 +61,9 @@ void setup()
     setupButton();
 #ifdef ENABLE_SHT31
     setupSHT31();
+#endif
+#ifdef ENABLE_CH9329
+    setupCH9329();
 #endif
 
     ledShowColor(LED_COLOR_NORMAL);

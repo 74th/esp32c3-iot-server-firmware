@@ -4,8 +4,15 @@
 #include <ArduinoJson.h>
 
 #include <led.hpp>
-#include <sht31.hpp>
 #include <ir.hpp>
+
+#ifdef ENABLE_SHT31
+#include <sht31.hpp>
+#endif
+
+#ifdef ENABLE_CH9329
+#include <ch9329.hpp>
+#endif
 
 WebServer server(80);
 
@@ -42,7 +49,10 @@ void setupWebAPI()
     server.on("/ir/receive", HTTP_GET, handleIRDecodeAPI);
     server.on("/ir/send", HTTP_POST, handleIRSendAPI);
 #ifdef ENABLE_SHT31
-    server.on("/sht31", HTTP_GET, handleGetSHT31API);
+    addSHT31API(&server);
+#endif
+#ifdef ENABLE_CH9329
+    addCH9329API(&server);
 #endif
     server.onNotFound(handleNotFoundAPI);
     server.begin();
