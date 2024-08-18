@@ -67,6 +67,37 @@ SHT31 から温度、湿度を取得します
 }
 ```
 
+### POST /CH9329/keyboard
+
+#### Request
+
+```json
+{
+  "shift": false,
+  "ctrl": false,
+  "win": false,
+  "alt": false,
+  "keycode": [69]
+}
+```
+
+keycode は CH9329 のキーコードです。
+USB HIDのキーコードとほとんど一緒ですが、一部異なっているようです。
+
+いちかわ（[@atsuyuki1kawa](https://twitter.com/atsuyuki1kawa)）さん製作の『キーボード／マウス　エミュレータ解説書』に記載があります。こちらを参考にしてください。
+
+https://techbookfest.org/product/iaTanH0UsU9j5TPnFT44rF?productVariantID=4Q1yNxZMFWWs9UJbkx7c6b
+
+#### Response
+
+```json
+{
+  "ts": 4647187,
+  "lib_version": "1.0.0",
+  "success": true
+}
+```
+
 ## ファームウェアの更新方法
 
 1. VS Code に拡張機能 [PlatformIO IDE](https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide)をインストールします

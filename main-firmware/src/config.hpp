@@ -8,6 +8,6 @@
 #define I2C_SCL_PIN GPIO_NUM_0
 #define I2C_SDA_PIN GPIO_NUM_1
 
-#define CH9329_SERIAL Serial0
+#define CH9329_SERIAL Serial1
 #define CH9329_TX_PIN GPIO_NUM_7
 #define CH9329_RX_PIN GPIO_NUM_8

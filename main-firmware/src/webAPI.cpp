@@ -48,12 +48,15 @@ void setupWebAPI()
     server.on("/", HTTP_GET, handleRootAPI);
     server.on("/ir/receive", HTTP_GET, handleIRDecodeAPI);
     server.on("/ir/send", HTTP_POST, handleIRSendAPI);
+
 #ifdef ENABLE_SHT31
     addSHT31API(&server);
 #endif
+
 #ifdef ENABLE_CH9329
     addCH9329API(&server);
 #endif
+
     server.onNotFound(handleNotFoundAPI);
     server.begin();
 }

@@ -52,17 +52,31 @@ void setup()
 
     Serial.println("Start Initialize");
 
+    Serial.println("Setup led");
     ledSetup();
 
+    Serial.println("Setup WiFi");
     setupWiFi();
+
+    Serial.println("Setup I2C");
     setupI2C();
+
+    Serial.println("Setup IR");
     setupIR();
+
+    Serial.println("Setup WebAPI");
     setupWebAPI();
+
+    Serial.println("Setup Button");
     setupButton();
+
 #ifdef ENABLE_SHT31
+    Serial.println("Setup SHT31");
     setupSHT31();
 #endif
+
 #ifdef ENABLE_CH9329
+    Serial.println("Setup CH9329");
     setupCH9329();
 #endif
 
