@@ -282,16 +282,17 @@ void handleIRSendAPI(void)
         return;
     }
 
-    Serial.printf("type: %s, hex: %s\r\n", type, hexData);
+    Serial.printf("type: %s, type_no: %d, hex: %s\r\n", type, typeNo, hexData);
 
     unsigned char data[64];
+    uint64_t data_u64;
     size_t size;
+    uint16_t data_len;
 
     switch (typeNo)
     {
     case TYPE_NO_SONY:
-        data[0] = hexStringToUint64(hexData);
-        Serial.printf("data: %llx\r\n", data);
+        data_u64 = hexStringToUint64(hexData);
         break;
     case TYPE_NO_DAIKIN:
     case TYPE_NO_DAIKIN2:
@@ -324,7 +325,19 @@ void handleIRSendAPI(void)
     switch (typeNo)
     {
     case TYPE_NO_SONY:
-        irsend.sendSony(data[0], 12, 2);
+        if (data_u64 <= 1 << 12)
+        {
+            data_len = 12;
+        }
+        else if (data_u64 <= 1 << 15)
+        {
+            data_len = 15;
+        }
+        else
+        {
+            data_len = 20;
+        }
+        irsend.sendSony(data_u64, data_len, 2);
         break;
     case TYPE_NO_DAIKIN:
         irsend.sendDaikin(data, size);
