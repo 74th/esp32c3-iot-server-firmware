@@ -130,6 +130,34 @@ void hexStringToByteArray(const char *hexString, unsigned char *byteArray, size_
     }
 }
 
+void hexStringToUint16Array(const char *hexString, uint16_t *rawData, size_t *len)
+{
+    const char *ptr = hexString;
+
+    // Skip 0x prefix if present
+    if (ptr[0] == '0' && (ptr[1] == 'x' || ptr[1] == 'X'))
+    {
+        ptr += 2;
+    }
+
+    size_t hexLen = strlen(hexString);
+    *len = hexLen / 4;
+
+    for (size_t i = 0; i < *len; i++)
+    {
+        uint16_t value = 0;
+
+        // Convert 4 hex characters to uint16_t
+        value = (hexCharToValue(ptr[0]) << 12) |
+                (hexCharToValue(ptr[1]) << 8) |
+                (hexCharToValue(ptr[2]) << 4) |
+                (hexCharToValue(ptr[3]));
+
+        rawData[i] = value;
+        ptr += 4;
+    }
+}
+
 void setupIR()
 {
     irsend.begin();
@@ -291,6 +319,7 @@ void handleIRSendAPI(void)
     Serial.printf("type: %s, type_no: %d, hex: %s\r\n", type, typeNo, hexData);
 
     unsigned char data[64];
+    uint16_t rawData[1024];
     uint64_t data_u64;
     size_t size;
     uint16_t data_len;
@@ -327,6 +356,10 @@ void handleIRSendAPI(void)
         Serial.printf("data: %llx\r\n", data);
         break;
     case TYPE_NO_RAW_38000:
+        hexStringToUint16Array(hexData, rawData, &size);
+        Serial.printf("size: %d\r\n", size);
+        Serial.printf("first: %d\r\n", rawData[0]);
+        Serial.printf("last: %d\r\n", rawData[size - 1]);
         break;
     }
 
@@ -423,6 +456,7 @@ void handleIRSendAPI(void)
         irsend.sendSharpAc(data, size);
         break;
     case TYPE_NO_RAW_38000:
+        irsend.sendRaw(rawData, size, 38);
         break;
     }
 
@@ -472,8 +506,8 @@ void handleIRDecodeAPI(void)
         String description = IRAcUtils::resultAcToString(&results);
         if (description.length())
             Serial.println(D_STR_MESGDESC ": " + description);
-        volatile uint16_t *rawData = results.rawbuf;
-        uint16_t rawLen = results.rawlen;
+        volatile uint16_t *rawData = resultToRawArray(&results);
+        uint16_t rawLen = getCorrectedRawLength(&results);
 
         // Convert rawData to hex string
         String rawHex = "";
@@ -492,6 +526,8 @@ void handleIRDecodeAPI(void)
                 rawHex += hexStr;
             }
         }
+        Serial.printf("raw first: %d\r\n", rawData[0]);
+        Serial.printf("raw last: %d\r\n", rawData[rawLen - 1]);
 
         doc["data"]["mes"] = description;
         doc["data"]["raw"] = rawHex;
