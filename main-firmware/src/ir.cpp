@@ -41,6 +41,7 @@
 #define TYPE_SANYO_AC152 "SANYO_AC152"
 #define TYPE_SHARP_AC "SHARP_AC"
 #define TYPE_SHARP_AC152 "SHARP_AC152"
+#define TYPE_RAW_38000 "RAW_38000"
 
 #define TYPE_NO_SONY 1
 #define TYPE_NO_DAIKIN 2
@@ -68,6 +69,7 @@
 #define TYPE_NO_SANYO_AC152 24
 #define TYPE_NO_SHARP_AC 25
 #define TYPE_NO_SHARP_AC152 26
+#define TYPE_NO_RAW_38000 27
 
 const uint16_t kCaptureBufferSize = 1024;
 const uint8_t kTimeout = 50;
@@ -275,6 +277,10 @@ void handleIRSendAPI(void)
     {
         typeNo = TYPE_NO_SHARP_AC152;
     }
+    else if (strcmp(type, TYPE_RAW_38000) == 0)
+    {
+        typeNo = TYPE_NO_RAW_38000;
+    }
     else
     {
         resDoc["error"] = "unknown type.";
@@ -319,6 +325,8 @@ void handleIRSendAPI(void)
     case TYPE_NO_SHARP_AC152:
         hexStringToByteArray(hexData, data, &size);
         Serial.printf("data: %llx\r\n", data);
+        break;
+    case TYPE_NO_RAW_38000:
         break;
     }
 
@@ -414,6 +422,8 @@ void handleIRSendAPI(void)
     case TYPE_NO_SHARP_AC152:
         irsend.sendSharpAc(data, size);
         break;
+    case TYPE_NO_RAW_38000:
+        break;
     }
 
     resDoc["success"] = true;
@@ -462,13 +472,41 @@ void handleIRDecodeAPI(void)
         String description = IRAcUtils::resultAcToString(&results);
         if (description.length())
             Serial.println(D_STR_MESGDESC ": " + description);
+        volatile uint16_t *rawData = results.rawbuf;
+        uint16_t rawLen = results.rawlen;
+
+        // Convert rawData to hex string
+        String rawHex = "";
+        for (uint16_t i = 0; i < rawLen; i++)
+        {
+            if (i == 0)
+            {
+                char hexStr[8];
+                sprintf(hexStr, "0x%04X", rawData[i]);
+                rawHex += hexStr;
+            }
+            else
+            {
+                char hexStr[8];
+                sprintf(hexStr, "%04X", rawData[i]);
+                rawHex += hexStr;
+            }
+        }
+
         doc["data"]["mes"] = description;
+        doc["data"]["raw"] = rawHex;
         yield(); // Feed the WDT as the text output can take a while to print.
 
         // Output the results as source code
         // Serial.println(resultToSourceCode(&results));
         // Serial.println(); // Blank line between entries
         // yield();          // Feed the WDT (again)
+
+        uint32_t now = millis();
+
+        doc["ts"] = now;
+
+        writeJSONResponse("GET /ir/receive", 200, doc);
 
         break;
     }
